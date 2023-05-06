@@ -1,0 +1,21 @@
+[Files]
+train_dir=./training_files
+model_dir=./models
+predict_in=./predict_input
+predict_out=./predict_output
+[Parameters]
+latent_dim=256
+num_samples=10000
+[Training]
+# optmization algoritm : it's ok to leave as is
+optimizer=rmsprop
+# loss function : it's ok to leave as is
+loss=categorical_crossentropy
+# metrics to use : it's ok to leave as is
+metrics=accuracy
+# training batch : you could try 64,128,256 (multiples of 64)
+batch_size=64
+# number of epochs: longer training can achieve better score , but't don't over do
+epochs=100
+# train/val split : it's ok to leave as is		
+val_split=0.2
