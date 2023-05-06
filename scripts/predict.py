@@ -23,29 +23,30 @@ class Predictor():
         self.latent_dim = config.getint('Parameters', 'latent_dim')  # Latent dimensionality of the encoding space.
         self.num_samples = config.getint('Parameters', 'num_samples')# Number of samples to train on.
         
-        # Restore the pre-trained model
-        self.model = keras.models.load_model(self.model_dir+os.sep+"seq2seq")
+    def load(self):
 
-    def prepare(self):
+        # Restore the pre-trained model
+        model = keras.models.load_model(self.model_dir+os.sep+"seq2seq")
+
         # construct the encoder and decoder
-        encoder_inputs = self.model.input[0]  # input_1
-        encoder_outputs, state_h_enc, state_c_enc = self.model.layers[2].output  # lstm_1
+        encoder_inputs = model.input[0]  # input_1
+        encoder_outputs, state_h_enc, state_c_enc = model.layers[2].output  # lstm_1
         encoder_states = [state_h_enc, state_c_enc]
         encoder_model = keras.Model(encoder_inputs, encoder_states)
 
-        decoder_inputs = self.model.input[1]  # input_2
+        decoder_inputs = model.input[1]  # input_2
         decoder_state_input_h = keras.Input(shape=(self.latent_dim,))
         decoder_state_input_c = keras.Input(shape=(self.latent_dim,))
-        decoder_states = [decoder_state_input_h, decoder_state_input_c]
-        decoder_lstm = self.model.layers[3]
+        decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
+        decoder_lstm = model.layers[3]
         decoder_outputs, state_h_dec, state_c_dec = decoder_lstm(
-            decoder_inputs, initial_state=decoder_states
+            decoder_inputs, initial_state=decoder_states_inputs
         )
         decoder_states = [state_h_dec, state_c_dec]
-        decoder_dense = self.model.layers[4]
+        decoder_dense = model.layers[4]
         decoder_outputs = decoder_dense(decoder_outputs)
         decoder_model = keras.Model(
-            [decoder_inputs] + decoder_states, [decoder_outputs] + decoder_states
+            [decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states
         )
         return encoder_model,decoder_model
 
@@ -97,7 +98,6 @@ class Predictor():
         return decoded_sentence
     
     def predict(self,input_texts,encoder_input_data,encoder_model,decoder_model,reverse_target_char_index,num_decoder_tokens,target_token_index,sequence_length=20):
-
         # write decoded sequence
         now= datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         with open(self.predict_out+os.sep+"decoded_file_"+now+".txt", "w") as write_file:
@@ -118,8 +118,7 @@ class Predictor():
                 print(" Input sentence :", input_texts[seq_index])
                 print("Decoded sentence:", decoded_sentence)
                 # write decoded sentence
-                write_file.write('---------------------')
-                write_file.write('   sequence index : %d' %seq_index)
+                write_file.write('   sequence index : %2d' %seq_index)
                 write_file.write('   input sentence : %s' %input_sentence)
                 write_file.write(' decoded sentence : %s' %decoded_sentence)
 
@@ -131,8 +130,8 @@ class Predictor():
             num_samples=self.num_samples
             ).run()
     
-        # Prepare the transformer (encoder+decoder)
-        encoder_model,decoder_model = self.prepare()
+        # Load the pre-trained model (encoder+decoder)
+        encoder_model,decoder_model = self.load()
 
         for file,tokens in preprocessing_outputs.items():
             print('file preprocessed : %s' %file)
