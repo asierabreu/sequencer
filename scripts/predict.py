@@ -2,10 +2,10 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
-from train import Trainer
-from preprocess import Preprocessor
 import configparser
+from tensorflow import keras
+from datetime import datetime
+from preprocess import Preprocessor
 # disable tensorflow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
@@ -17,13 +17,14 @@ class Predictor():
         # Read the configuration
         config = configparser.ConfigParser()
         config.read('./config.txt')
-        self.train_dir = config.get('Files', 'train_dir')    # Absolute path of the top directory containing training data
+        self.predict_in = config.get('Files', 'predict_in')    # Absolute path of the top directory containing input data
+        self.predict_out = config.get('Files', 'predict_out')    # Absolute path of the top directory containing output
         self.model_dir = config.get('Files', 'model_dir')    # Absolute path of the top directory to hold output model
         self.latent_dim = config.getint('Parameters', 'latent_dim')  # Latent dimensionality of the encoding space.
-        # Restore the model
+        self.num_samples = config.getint('Parameters', 'num_samples')# Number of samples to train on.
+        
+        # Restore the pre-trained model
         self.model = keras.models.load_model(self.model_dir+os.sep+"seq2seq")
-        # Prepare the transformer (encoder+decoder)
-        self.prepare()
 
     def prepare(self):
         # construct the encoder and decoder
@@ -35,16 +36,16 @@ class Predictor():
         decoder_inputs = self.model.input[1]  # input_2
         decoder_state_input_h = keras.Input(shape=(self.latent_dim,))
         decoder_state_input_c = keras.Input(shape=(self.latent_dim,))
-        decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
+        decoder_states = [decoder_state_input_h, decoder_state_input_c]
         decoder_lstm = self.model.layers[3]
         decoder_outputs, state_h_dec, state_c_dec = decoder_lstm(
-            decoder_inputs, initial_state=decoder_states_inputs
+            decoder_inputs, initial_state=decoder_states
         )
         decoder_states = [state_h_dec, state_c_dec]
         decoder_dense = self.model.layers[4]
         decoder_outputs = decoder_dense(decoder_outputs)
         decoder_model = keras.Model(
-            [decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states
+            [decoder_inputs] + decoder_states, [decoder_outputs] + decoder_states
         )
         return encoder_model,decoder_model
 
@@ -95,37 +96,74 @@ class Predictor():
             states_value = [h, c]
         return decoded_sentence
     
-    def predict(self,input_texts,encoder_input_data,sequence_length=20):
-        for seq_index in range(sequence_length):
-            # Take one sequence (part of the training set) for trying out decoding.
-            input_seq = encoder_input_data[seq_index : seq_index + 1]
-            decoded_sentence = self.decoder(input_seq)
-            print("-")
-            print(" Input sentence :", input_texts[seq_index])
-            print("Decoded sentence:", decoded_sentence)
+    def predict(self,input_texts,encoder_input_data,encoder_model,decoder_model,reverse_target_char_index,num_decoder_tokens,target_token_index,sequence_length=20):
+
+        # write decoded sequence
+        now= datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
+        with open(self.predict_out+os.sep+"decoded_file_"+now+".txt", "w") as write_file:
+            for seq_index in range(sequence_length):
+                # Take one sequence (part of the training set) for trying out decoding.
+                input_seq = encoder_input_data[seq_index : seq_index + 1]
+                input_sentence = input_texts[seq_index]
+                decoded_sentence = self.decoder(
+                    input_seq=input_seq,
+                    encoder_model=encoder_model,
+                    decoder_model=decoder_model,
+                    reverse_target_char_index=reverse_target_char_index,
+                    num_decoder_tokens=num_decoder_tokens,
+                    target_token_index=target_token_index,
+                    max_decoder_seq_length=sequence_length
+                    )
+                print("-")
+                print(" Input sentence :", input_texts[seq_index])
+                print("Decoded sentence:", decoded_sentence)
+                # write decoded sentence
+                write_file.write('---------------------')
+                write_file.write('   sequence index : %d' %seq_index)
+                write_file.write('   input sentence : %s' %input_sentence)
+                write_file.write(' decoded sentence : %s' %decoded_sentence)
 
     def run(self):
-        # preprocess the input data
-        tokens = Preprocessor(data_dir=self.data_dir).run()
-        num_encoder_tokens=tokens['num_encoder_tokens']
-        num_decoder_tokens=tokens['num_decoder_tokens']
-        encoder_input_data=tokens['encoder_input_data']
-        input_token_index=tokens['input_token_index']
-        target_token_index=tokens['target_token_index']
-        # reverse look up on input
-        reverse_input_char_index,reverse_target_char_index = self.reverse_lookup(
-            input_token_index=input_token_index,
-            target_token_index=target_token_index
-            )
 
-        # make the prediction 
-        self.predict(input_texts=input_texts,
-                     encoder_input_data=encoder_input_data,
-                     )
+        # preprocess the input data
+        preprocessing_outputs = Preprocessor(
+            data_dir=self.predict_in,
+            num_samples=self.num_samples
+            ).run()
+    
+        # Prepare the transformer (encoder+decoder)
+        encoder_model,decoder_model = self.prepare()
+
+        for file,tokens in preprocessing_outputs.items():
+            print('file preprocessed : %s' %file)
+            input_texts=tokens['input_texts']
+            num_encoder_tokens=tokens['num_encoder_tokens']
+            num_decoder_tokens=tokens['num_decoder_tokens']
+            encoder_input_data=tokens['encoder_input_data']
+            decoder_input_data=tokens['decoder_input_data']
+            decoder_target_data=tokens['decoder_target_data']
+            input_token_index=tokens['input_token_index']
+            target_token_index=tokens['target_token_index']
+            
+            # reverse look up on input
+            reverse_input_char_index,reverse_target_char_index = self.reverse_lookup(
+                input_token_index=input_token_index,
+                target_token_index=target_token_index
+                )
+
+            # make the prediction 
+            self.predict(input_texts=input_texts,
+                        encoder_input_data=encoder_input_data,
+                        encoder_model=encoder_model,
+                        decoder_model=decoder_model,
+                        reverse_target_char_index=reverse_target_char_index,
+                        num_decoder_tokens=num_decoder_tokens,
+                        target_token_index=target_token_index
+                        )
         
 # Execution    
 if __name__ == "__main__":
-    print("------------------")
+    print("--------------------")
     print("doing prediction ...")
-    print("------------------")
+    print("--------------------")
     Predictor().run()

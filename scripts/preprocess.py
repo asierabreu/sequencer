@@ -72,6 +72,7 @@ class Preprocessor():
             decoder_target_data[i, t:, target_token_index[" "]] = 1.0
         # create a dictionary with outputs and other required items
         tokens={}
+        tokens['input_texts']=input_texts
         tokens['num_encoder_tokens']=num_encoder_tokens
         tokens['num_decoder_tokens']=num_decoder_tokens
         tokens['input_token_index']=input_token_index
