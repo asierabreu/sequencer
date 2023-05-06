@@ -100,7 +100,7 @@ class Predictor():
     def predict(self,input_texts,encoder_input_data,encoder_model,decoder_model,reverse_target_char_index,num_decoder_tokens,target_token_index,sequence_length=20):
         # write decoded sequence
         now= datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
-        with open(self.predict_out+os.sep+"decoded_file_"+now+".txt", "w") as write_file:
+        with open(self.predict_out+os.sep+"decoded_sentences_"+now+".txt", "w") as write_file:
             for seq_index in range(sequence_length):
                 # Take one sequence (part of the training set) for trying out decoding.
                 input_seq = encoder_input_data[seq_index : seq_index + 1]
