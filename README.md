@@ -13,14 +13,11 @@ A few extra things added are :
 
 ## Setup Instructions
 
-The following instructions assume you have downloaded the git repository , e.g. by doing: 
-
-git clone https://github.com/asierabreu/sequencer
-
-1. Create a python virtual environment :python3 -m venv virtualenv
-2. Activate this environment : source virtualenv/bin/activate
-3. Install dependencies : pip3 install -r requirements.txt
-4. (Optional) Install kernel for virtual env: ipython kernel install --name "virtualenv" --user
+1. Download this repository : git clone https://github.com/asierabreu/sequencer
+2. Create a local python virtual environment :python3 -m venv virtualenv
+3. Activate this environment : source virtualenv/bin/activate
+4. Install dependencies : pip3 install -r requirements.txt
+5. (Optional) Install kernel for virtual env: ipython kernel install --name "virtualenv" --user
 
 ## Folder structure
 
